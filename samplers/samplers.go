@@ -1,6 +1,8 @@
 package samplers
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"hash/fnv"
 	"math"
@@ -69,14 +71,15 @@ type JSONMetric struct {
 
 // Counter is an accumulator
 type Counter struct {
-	Name  string
-	Tags  []string
-	value int64
+	Name   string
+	Tags   []string
+	value  int64
+	counts int64
 }
 
 // Sample adds a sample to the counter.
 func (c *Counter) Sample(sample float64, sampleRate float32) {
-	c.value += int64(sample) * int64(1/sampleRate)
+	c.counts += int64(sample) * int64(1/sampleRate)
 }
 
 // Flush generates a DDMetric from the current state of this Counter.
@@ -85,11 +88,63 @@ func (c *Counter) Flush(interval time.Duration) []DDMetric {
 	copy(tags, c.Tags)
 	return []DDMetric{{
 		Name:       c.Name,
-		Value:      [1][2]float64{{float64(time.Now().Unix()), float64(c.value) / interval.Seconds()}},
+		Value:      [1][2]float64{{float64(time.Now().Unix()), float64(c.counts) / interval.Seconds()}},
 		Tags:       tags,
 		MetricType: "rate",
 		Interval:   int32(interval.Seconds()),
 	}}
+}
+
+// if this is a global veneur instance, flush the summed rates
+func (c *Counter) FlushGlobal(interval time.Duration) []DDMetric {
+	tags := make([]string, len(c.Tags))
+	copy(tags, c.Tags)
+	return []DDMetric{{
+		Name:       c.Name,
+		Value:      [1][2]float64{{float64(time.Now().Unix()), c.value}},
+		Tags:       tags,
+		MetricType: "rate",
+		// TODO (kiran): this is an okay approximation, as long ast
+		// the local and global instances are configured to flush at the
+		// same intervals. If this ever changes, this estimation will fail.
+		Interval: int32(interval.Seconds()),
+	}}
+}
+
+// Export converts a Counter into a JSONMetric which reports the rate.
+func (c *Counter) Export(interval time.Duration) (JSONMetric, error) {
+	val := (float64(c.counts) / interval.Seconds())
+	buf := new(bytes.Buffer)
+
+	err := binary.Write(buf, binary.LittleEndian, val)
+	if err != nil {
+		return JSONMetric{}, err
+	}
+
+	return JSONMetric{
+		MetricKey: MetricKey{
+			Name:       c.Name,
+			Type:       "counter",
+			JoinedTags: strings.Join(c.Tags, ","),
+		},
+		Tags:  c.Tags,
+		Value: buf.Bytes(),
+	}, nil
+}
+
+// Combine merges the values seen with another set (marshalled as a byte slice)
+func (c *Counter) Combine(other []byte) error {
+	var otherRate float64
+	buf := bytes.NewReader(other)
+	err := binary.Read(buf, binary.LittleEndian, &otherRate)
+
+	if err != nil {
+		return err
+	}
+
+	c.value += otherRate
+
+	return nil
 }
 
 // NewCounter generates and returns a new Counter.

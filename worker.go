@@ -35,6 +35,9 @@ type WorkerMetrics struct {
 	sets       map[samplers.MetricKey]*samplers.Set
 	timers     map[samplers.MetricKey]*samplers.Histo
 
+	// this is for counters which are globally aggregated
+	globalCounters map[samplers.MetricKey]*samplers.Counter
+
 	// these are used for metrics that shouldn't be forwarded
 	localHistograms map[samplers.MetricKey]*samplers.Histo
 	localSets       map[samplers.MetricKey]*samplers.Set
@@ -58,12 +61,18 @@ func NewWorkerMetrics() WorkerMetrics {
 // Upsert creates an entry on the WorkerMetrics struct for the given metrickey (if one does not already exist)
 // and updates the existing entry (if one already exists).
 // Returns true if the metric entry was created and false otherwise.
-func (wm WorkerMetrics) Upsert(mk samplers.MetricKey, localOnly bool, tags []string) bool {
+func (wm WorkerMetrics) Upsert(mk samplers.MetricKey, localOnly bool, forceGlobal bool, tags []string) bool {
 	present := false
 	switch mk.Type {
 	case "counter":
-		if _, present = wm.counters[mk]; !present {
-			wm.counters[mk] = samplers.NewCounter(mk.Name, tags)
+		if forceGlobal {
+			if _, present = wm.globalCounters[mk]; !present {
+				wm.globalCounters[mk] = samplers.NewCounter(mk.Name, tags)
+			}
+		} else {
+			if _, present = wm.counters[mk]; !present {
+				wm.counters[mk] = samplers.NewCounter(mk.Name, tags)
+			}
 		}
 	case "gauge":
 		if _, present = wm.gauges[mk]; !present {
@@ -148,11 +157,15 @@ func (w *Worker) ProcessMetric(m *samplers.UDPMetric) {
 	defer w.mutex.Unlock()
 
 	w.processed++
-	w.wm.Upsert(m.MetricKey, m.LocalOnly, m.Tags)
+	w.wm.Upsert(m.MetricKey, m.LocalOnly, m.ForceGlobal, m.Tags)
 
 	switch m.Type {
 	case "counter":
-		w.wm.counters[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+		if m.ForceGlobal {
+			w.wm.globalCounters[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+		} else {
+			w.wm.counters[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
+		}
 	case "gauge":
 		w.wm.gauges[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
 	case "histogram":
@@ -186,9 +199,13 @@ func (w *Worker) ImportMetric(other samplers.JSONMetric) {
 	// we don't increment the processed metric counter here, it was already
 	// counted by the original veneur that sent this to us
 	w.imported++
-	w.wm.Upsert(other.MetricKey, false, other.Tags)
+	w.wm.Upsert(other.MetricKey, false, false, other.Tags)
 
 	switch other.Type {
+	case "counter":
+		if err := w.wm.globalCounters[other.MetricKey].Combine(other.Value); err != nil {
+			log.WithError(err).Error("Could not merge counters")
+		}
 	case "set":
 		if err := w.wm.sets[other.MetricKey].Combine(other.Value); err != nil {
 			log.WithError(err).Error("Could not merge sets")
