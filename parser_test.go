@@ -115,9 +115,18 @@ func TestInvalidPackets(t *testing.T) {
 func TestLocalOnlyEscape(t *testing.T) {
 	m, err := samplers.ParseMetric([]byte("a.b.c:1|h|#veneurlocalonly"))
 	assert.NoError(t, err, "should have no error parsing")
-	assert.True(t, m.LocalOnly, "should have gotten local only metric")
+	assert.Equal(t, LocalOnly, m.Scope, "should have gotten local only metric")
 	for _, thisTag := range m.Tags {
 		assert.NotEqual(t, "veneurlocalonly", thisTag, "veneurlocalonly should not actually be a tag")
+	}
+}
+
+func TestGlobalOnlyEscape(t *testing.T) {
+	m, err := ParseMetric([]byte("a.b.c:1|h|#veneurglobalonly"))
+	assert.NoError(t, err, "should have no error parsing")
+	assert.Equal(t, GlobalOnly, m.Scope, "should have gotten local only metric")
+	for _, thisTag := range m.Tags {
+		assert.NotEqual(t, "veneurglobalonly", thisTag, "veneurglobalonly should not actually be a tag")
 	}
 }
 

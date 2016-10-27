@@ -15,13 +15,20 @@ import (
 // should be deterministically ordered.
 type UDPMetric struct {
 	MetricKey
-	Digest      uint32
-	Value       interface{}
-	SampleRate  float32
-	Tags        []string
-	LocalOnly   bool
-	ForceGlobal bool
+	Digest     uint32
+	Value      interface{}
+	SampleRate float32
+	Tags       []string
+	Scope      MetricScope
 }
+
+type MetricScope int
+
+const (
+	MixedScope MetricScope = iota
+	LocalOnly
+	GlobalOnly
+)
 
 // MetricKey is a struct used to key the metrics into the worker's map. All fields must be comparable types.
 type MetricKey struct {
@@ -130,13 +137,12 @@ func ParseMetric(packet []byte) (*UDPMetric, error) {
 				if tag == "veneurlocalonly" {
 					// delete the tag from the list
 					tags = append(tags[:i], tags[i+1:]...)
-					ret.LocalOnly = true
+					ret.Scope = LocalOnly
 					break
-				} else if tag == "veneurforceglobal" {
+				} else if tag == "veneurglobalonly" {
 					// delete the tag from the list
 					tags = append(tags[:i], tags[i+1:]...)
-					ret.ForceGlobal = false
-					// zero values for booleans are false, so this is POINTLESS
+					ret.Scope = GlobalOnly
 					break
 				}
 			}
