@@ -40,7 +40,7 @@ func TestWorkerLocal(t *testing.T) {
 		Value:      1.0,
 		Digest:     12345,
 		SampleRate: 1.0,
-		Scope:      LocalOnly,
+		Scope:      samplers.LocalOnly,
 	}
 	w.ProcessMetric(&m)
 

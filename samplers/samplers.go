@@ -73,7 +73,7 @@ type JSONMetric struct {
 type Counter struct {
 	Name   string
 	Tags   []string
-	value  int64
+	value  float64
 	counts int64
 }
 

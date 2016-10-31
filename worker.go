@@ -61,11 +61,11 @@ func NewWorkerMetrics() WorkerMetrics {
 // Upsert creates an entry on the WorkerMetrics struct for the given metrickey (if one does not already exist)
 // and updates the existing entry (if one already exists).
 // Returns true if the metric entry was created and false otherwise.
-func (wm WorkerMetrics) Upsert(mk samplers.MetricKey, Scope MetricScope, tags []string) bool {
+func (wm WorkerMetrics) Upsert(mk samplers.MetricKey, Scope samplers.MetricScope, tags []string) bool {
 	present := false
 	switch mk.Type {
 	case "counter":
-		if Scope == GlobalOnly {
+		if Scope == samplers.GlobalOnly {
 			if _, present = wm.globalCounters[mk]; !present {
 				wm.globalCounters[mk] = samplers.NewCounter(mk.Name, tags)
 			}
@@ -79,7 +79,7 @@ func (wm WorkerMetrics) Upsert(mk samplers.MetricKey, Scope MetricScope, tags []
 			wm.gauges[mk] = samplers.NewGauge(mk.Name, tags)
 		}
 	case "histogram":
-		if Scope == LocalOnly {
+		if Scope == samplers.LocalOnly {
 			if _, present = wm.localHistograms[mk]; !present {
 				wm.localHistograms[mk] = samplers.NewHist(mk.Name, tags)
 			}
@@ -89,7 +89,7 @@ func (wm WorkerMetrics) Upsert(mk samplers.MetricKey, Scope MetricScope, tags []
 			}
 		}
 	case "set":
-		if Scope == LocalOnly {
+		if Scope == samplers.LocalOnly {
 			if _, present = wm.localSets[mk]; !present {
 				wm.localSets[mk] = samplers.NewSet(mk.Name, tags)
 			}
@@ -99,7 +99,7 @@ func (wm WorkerMetrics) Upsert(mk samplers.MetricKey, Scope MetricScope, tags []
 			}
 		}
 	case "timer":
-		if Scope == LocalOnly {
+		if Scope == samplers.LocalOnly {
 			if _, present = wm.localTimers[mk]; !present {
 				wm.localTimers[mk] = samplers.NewHist(mk.Name, tags)
 			}
@@ -161,7 +161,7 @@ func (w *Worker) ProcessMetric(m *samplers.UDPMetric) {
 
 	switch m.Type {
 	case "counter":
-		if m.Scope == GlobalOnly {
+		if m.Scope == samplers.GlobalOnly {
 			w.wm.globalCounters[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
 		} else {
 			w.wm.counters[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
@@ -169,19 +169,19 @@ func (w *Worker) ProcessMetric(m *samplers.UDPMetric) {
 	case "gauge":
 		w.wm.gauges[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
 	case "histogram":
-		if m.Scope == LocalOnly {
+		if m.Scope == samplers.LocalOnly {
 			w.wm.localHistograms[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
 		} else {
 			w.wm.histograms[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
 		}
 	case "set":
-		if m.Scope == LocalOnly {
+		if m.Scope == samplers.LocalOnly {
 			w.wm.localSets[m.MetricKey].Sample(m.Value.(string), m.SampleRate)
 		} else {
 			w.wm.sets[m.MetricKey].Sample(m.Value.(string), m.SampleRate)
 		}
 	case "timer":
-		if m.Scope == LocalOnly {
+		if m.Scope == samplers.LocalOnly {
 			w.wm.localTimers[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
 		} else {
 			w.wm.timers[m.MetricKey].Sample(m.Value.(float64), m.SampleRate)
@@ -199,7 +199,7 @@ func (w *Worker) ImportMetric(other samplers.JSONMetric) {
 	// we don't increment the processed metric counter here, it was already
 	// counted by the original veneur that sent this to us
 	w.imported++
-	w.wm.Upsert(other.MetricKey, MixedScope, other.Tags)
+	w.wm.Upsert(other.MetricKey, samplers.MixedScope, other.Tags)
 
 	switch other.Type {
 	case "counter":
