@@ -341,7 +341,6 @@ func (s *Server) flushForward(wms []WorkerMetrics, interval time.Duration) {
 				}).Error("Could not export metric")
 				continue
 			}
-			// do I need to set jm.Type here?
 			jsonMetrics = append(jsonMetrics, jm)
 		}
 		for _, histo := range wm.histograms {

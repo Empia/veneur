@@ -71,9 +71,11 @@ type JSONMetric struct {
 
 // Counter is an accumulator
 type Counter struct {
-	Name   string
-	Tags   []string
-	value  float64
+	Name string
+	Tags []string
+	// value stores the computed rate of the counter, when passed to the global veneur
+	value float64
+	// counts stores the raw counts, when sampled locally
 	counts int64
 }
 
@@ -104,7 +106,7 @@ func (c *Counter) FlushGlobal(interval time.Duration) []DDMetric {
 		Value:      [1][2]float64{{float64(time.Now().Unix()), c.value}},
 		Tags:       tags,
 		MetricType: "rate",
-		// TODO (kiran): this is an okay approximation, as long ast
+		// TODO (kiran): this is an okay approximation, as long as
 		// the local and global instances are configured to flush at the
 		// same intervals. If this ever changes, this estimation will fail.
 		Interval: int32(interval.Seconds()),
