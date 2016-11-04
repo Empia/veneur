@@ -1,0 +1,10 @@
+{
+  "trace_id": 1478296370,
+  "span_id": 4978296370,
+  "parent_id": 2978296370,
+  "service": "veneur-srv",
+  "name": "metric.name",
+  "resource": "/api/foo",
+  "start": 1478296480,
+  "duration": 1478296480.0
+}
