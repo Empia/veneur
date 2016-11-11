@@ -71,17 +71,14 @@ type JSONMetric struct {
 
 // Counter is an accumulator
 type Counter struct {
-	Name string
-	Tags []string
-	// value stores the computed rate of the counter, when passed to the global veneur
-	value float64
-	// counts stores the raw counts, when sampled locally
-	counts int64
+	Name  string
+	Tags  []string
+	value int64
 }
 
 // Sample adds a sample to the counter.
 func (c *Counter) Sample(sample float64, sampleRate float32) {
-	c.counts += int64(sample) * int64(1/sampleRate)
+	c.value += int64(sample) * int64(1/sampleRate)
 }
 
 // Flush generates a DDMetric from the current state of this Counter.
@@ -90,7 +87,7 @@ func (c *Counter) Flush(interval time.Duration) []DDMetric {
 	copy(tags, c.Tags)
 	return []DDMetric{{
 		Name:       c.Name,
-		Value:      [1][2]float64{{float64(time.Now().Unix()), float64(c.counts) / interval.Seconds()}},
+		Value:      [1][2]float64{{float64(time.Now().Unix()), float64(c.value) / interval.Seconds()}},
 		Tags:       tags,
 		MetricType: "rate",
 		Interval:   int32(interval.Seconds()),
@@ -103,7 +100,7 @@ func (c *Counter) FlushGlobal(interval time.Duration) []DDMetric {
 	copy(tags, c.Tags)
 	return []DDMetric{{
 		Name:       c.Name,
-		Value:      [1][2]float64{{float64(time.Now().Unix()), c.value}},
+		Value:      [1][2]float64{{float64(time.Now().Unix()), float64(c.value) / interval.Seconds()}},
 		Tags:       tags,
 		MetricType: "rate",
 		// TODO (kiran): this is an okay approximation, as long as
@@ -114,11 +111,10 @@ func (c *Counter) FlushGlobal(interval time.Duration) []DDMetric {
 }
 
 // Export converts a Counter into a JSONMetric which reports the rate.
-func (c *Counter) Export(interval time.Duration) (JSONMetric, error) {
-	val := (float64(c.counts) / interval.Seconds())
+func (c *Counter) Export() (JSONMetric, error) {
 	buf := new(bytes.Buffer)
 
-	err := binary.Write(buf, binary.LittleEndian, val)
+	err := binary.Write(buf, binary.LittleEndian, c.value)
 	if err != nil {
 		return JSONMetric{}, err
 	}
@@ -136,15 +132,15 @@ func (c *Counter) Export(interval time.Duration) (JSONMetric, error) {
 
 // Combine merges the values seen with another set (marshalled as a byte slice)
 func (c *Counter) Combine(other []byte) error {
-	var otherRate float64
+	var otherCounts int64
 	buf := bytes.NewReader(other)
-	err := binary.Read(buf, binary.LittleEndian, &otherRate)
+	err := binary.Read(buf, binary.LittleEndian, &otherCounts)
 
 	if err != nil {
 		return err
 	}
 
-	c.value += otherRate
+	c.value += otherCounts
 
 	return nil
 }

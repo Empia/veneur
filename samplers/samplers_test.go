@@ -57,14 +57,14 @@ func TestCounterMerge(t *testing.T) {
 	c := NewCounter("a.b.c", []string{"tag:val"})
 
 	c.Sample(5, 0.5)
-	jm, err := c.Export(10 * time.Second)
+	jm, err := c.Export()
 	assert.NoError(t, err, "should have exported counter successfully")
 
 	c2 := NewCounter("a.b.c", []string{"tag:val"})
 
 	c2.Sample(14, 0.5)
 	// test with a different interval, and ensure the correct rate is passed on
-	jm2, err2 := c2.Export(7 * time.Second)
+	jm2, err2 := c2.Export()
 	assert.NoError(t, err2, "should have exported counter successfully")
 
 	cGlobal := NewCounter("a.b.c", []string{"tag2: val2"})
@@ -76,7 +76,7 @@ func TestCounterMerge(t *testing.T) {
 	assert.NoError(t, cGlobal.Combine(jm2.Value), "should have combined counters successfully")
 
 	metrics = cGlobal.FlushGlobal(10 * time.Second)
-	assert.Equal(t, float64(5), metrics[0].Value[0][1])
+	assert.Equal(t, float64(3.8), metrics[0].Value[0][1])
 }
 
 func TestGauge(t *testing.T) {

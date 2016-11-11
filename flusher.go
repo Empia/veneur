@@ -332,7 +332,7 @@ func (s *Server) flushForward(wms []WorkerMetrics, interval time.Duration) {
 	exportStart := time.Now()
 	for _, wm := range wms {
 		for _, count := range wm.globalCounters {
-			jm, err := count.Export(interval)
+			jm, err := count.Export()
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					logrus.ErrorKey: err,
